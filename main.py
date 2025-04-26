@@ -1,35 +1,31 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import sqlite3
+from typing import List
+
+import crud  # Імпортуємо наш CRUD
 
 app = FastAPI()
 
+crud.create_table()
+
 class User(BaseModel):
-    id: int
+    id: int = None
     username: str
     email: str
 
-conn = sqlite3.connect('users.db')
-c = conn.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, email TEXT)''')
-conn.commit()
-
-@app.get("/users/{user_id}")
-def get_user(user_id: int):
-    c.execute("SELECT * FROM users WHERE id=?", (user_id,))
-    user = c.fetchone()
+@app.get("/users/{user_id}", response_model=User)
+def read_user(user_id: int):
+    user = crud.get_user_by_id(user_id)
     if user:
         return User(id=user[0], username=user[1], email=user[2])
-    return {"message": "User not found"}
+    raise HTTPException(status_code=404, detail="User not found")
 
-@app.get("/users")
-def get_users():
-    c.execute("SELECT *  FROM users")
-    all_users = c.fetchall()
-    return [{"id": user[0], "username": user[1], "email": user[2]} for user in all_users]
+@app.get("/users", response_model=List[User])
+def read_users():
+    users = crud.get_all_users()
+    return [User(id=user[0], username=user[1], email=user[2]) for user in users]
 
-@app.post("/create_user")
+@app.post("/create_user", response_model=User)
 def create_user(user: User):
-    c.execute("INSERT INTO users (username, email) VALUES (?, ?)", (user.username, user.email))
-    conn.commit()
+    crud.add_user(user.username, user.email)
     return user
